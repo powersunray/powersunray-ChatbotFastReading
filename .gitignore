@@ -1,0 +1,23 @@
+# === Python cache & environment ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.mypy_cache/
+venv/
+
+# === macOS, IDEs ===
+.DS_Store
+.vscode/
+.idea/
+
+# === PDF files and old backup files ===
+*.pdf
+OLD_*.py
+
+# === Ignore everything else in backend except 2 files ===
+backend/*
+!backend/chatbot.py
+!backend/process_documents.py
+
+# === frontend/ is kept entirely, so no ignore needed
