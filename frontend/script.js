@@ -181,7 +181,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // Handle sending a message
-  function sendMessage() {
+  async function sendMessage() {
     const text = chatInput.value.trim();
     if (text === "") return;
 
@@ -191,14 +191,43 @@ document.addEventListener("DOMContentLoaded", function () {
     // Clear input
     chatInput.value = "";
 
-    // Simulate bot response (in a real app, this would call an API)
-    setTimeout(() => {
-      addMessage(
-        'I received your message: "' +
-          text +
-          '". How can I help you with these documents?'
-      );
-    }, 1000);
+    // // Simulate bot response (in a real app, this would call an API)
+    // setTimeout(() => {
+    //   addMessage(
+    //     'I received your message: "' +
+    //       text +
+    //       '". How can I help you with these documents?'
+    //   );
+    // }, 1000);
+
+    // Send request to Flask backend
+    try {
+      // addMessage("Đang xử lý...", false);
+      const response = await fetch("http://127.0.0.1:5000/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: text }),
+      });
+        
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+
+      const data = await response.json();
+
+      // Display answer from chatbot
+      addMessage(data.answer, false);
+
+      // Display source if there is
+      if (data.sources && data.sources.length > 0) {
+        addMessage(`Source: ${data.sources.join(", ")}`, false);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      addMessage("An error occurred while submitting question", false);
+    }
   }
 
   // Generate a unique ID

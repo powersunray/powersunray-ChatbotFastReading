@@ -41,8 +41,8 @@ def get_document_chunks():
         
     # Split text and save the sources
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=150,
+        chunk_size=2000,
+        chunk_overlap=200,
     )
     chunks_with_metadata = []
     for source, text in documents.items():

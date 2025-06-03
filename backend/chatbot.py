@@ -35,8 +35,8 @@ def answer_question(vector_store, question):
     chain = load_qa_chain(llm, chain_type="stuff")
     
     # Take 2 most related sources with metadata
-    matches = vector_store.similarity_search(question, k=2)
-    docs = [match.page_content for match in matches] # Document content
+    matches = vector_store.similarity_search(question, k=10)
+    # docs = [match.page_content for match in matches] # Document content
     sources = [match.metadata["source"] for match in matches] # Source from metadata
     
     # Create answer from LLM
