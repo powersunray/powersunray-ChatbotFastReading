@@ -48,25 +48,62 @@ def answer_question(vector_store, question):
     return response, unique_sources
 
 # Load and split documents once on startup
-chunks = get_document_chunks()
-vector_store = create_vector_store(chunks)
+# chunks = get_document_chunks()
+# vector_store = create_vector_store(chunks)
 
 # Chatbot function
-def chatbot(question):
-    # response = answer_question(vector_store, question)
-    # return response
-    response, sources = answer_question(vector_store, question)
-    return response, sources
+# def chatbot(question):
+#     # response = answer_question(vector_store, question)
+#     # return response
+#     response, sources = answer_question(vector_store, question)
+#     return response, sources
+
+def chatbot(question, selected_files, selected_links):
+    # Get chunks from selected files and links
+    chunks_with_metadata = get_document_chunks(selected_files, selected_links)
+    
+    # Create vector stores from them
+    embeddings = TogetherEmbeddings(
+        api_key=os.getenv("TOGETHER_AI_API_KEY"),
+        model="togethercomputer/m2-bert-80M-32k-retrieval"
+    )
+    vector_store = FAISS.from_texts(
+        [chunk["text"] for chunk in chunks_with_metadata],
+        embeddings,
+        metadatas=[{"source": chunk["source"]} for chunk in chunks_with_metadata]
+    )
+    
+    # Initialize LLM
+    llm = Together(
+        api_key=os.getenv("TOGETHER_AI_API_KEY"),
+        model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        temperature=0,
+        max_tokens=500,
+    )
+    
+    # Create QA chain
+    chain = load_qa_chain(llm, chain_type="stuff")
+    
+    # Find related text passages
+    matches = vector_store.similarity_search(question, k=7)
+    
+    # Create answer
+    response = chain.run(input_documents=matches, question=question)
+    
+    # Get sources list and eliminate duplicate sources
+    sources = [match.metadata["source"] for match in matches]
+    unique_sources = list(set(sources))
+    return response, unique_sources
 
 # Run chatbot
-if __name__ == "__main__":
-    question = input("Enter your question: ")
-    while question.lower() != "stop":
-        # answer = chatbot(question)
-        answer, sources = chatbot(question)
-        print(f"Answer: {answer}")
-        if sources:
-            print(f"Sources: {', '.join(sources)}")
-        else:
-            print("No sources found.")
-        question = input("Enter your question: ")
+# if __name__ == "__main__":
+#     question = input("Enter your question: ")
+#     while question.lower() != "stop":
+#         # answer = chatbot(question)
+#         answer, sources = chatbot(question)
+#         print(f"Answer: {answer}")
+#         if sources:
+#             print(f"Sources: {', '.join(sources)}")
+#         else:
+#             print("No sources found.")
+#         question = input("Enter your question: ")

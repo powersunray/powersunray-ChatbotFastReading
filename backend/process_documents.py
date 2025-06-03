@@ -27,16 +27,19 @@ def extract_text_from_url(url):
         print(f"Error processing {url}: {e}")
         return ""
 
-def get_document_chunks():
+def get_document_chunks(selected_files, selected_links):
     documents = {}
+    
     # List of PDFs
-    pdf_files = ['27_2025_TT-BTC_658258.pdf', '03_2025_TT-BNNMT_657315.pdf']
-    for pdf in pdf_files:
+    # pdf_files = ['27_2025_TT-BTC_658258.pdf', '03_2025_TT-BNNMT_657315.pdf']
+    # for pdf in pdf_files:
+    for pdf in selected_files:
         documents[pdf] = extract_text_from_pdf(pdf)
         
     # List of URLs
-    urls = ['https://thuvienphapluat.vn/page/tim-van-ban.aspx?keyword=th%C3%B4ng%20t%C6%B0&match=True&area=0']
-    for url in urls:
+    # urls = ['https://thuvienphapluat.vn/page/tim-van-ban.aspx?keyword=th%C3%B4ng%20t%C6%B0&match=True&area=0']
+    # for url in urls:
+    for url in selected_links:
         documents[url] = extract_text_from_url(url)
         
     # Split text and save the sources

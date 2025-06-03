@@ -185,7 +185,51 @@ document.addEventListener("DOMContentLoaded", function () {
     const text = chatInput.value.trim();
     if (text === "") return;
 
-    // Add user message
+    // // Get ticked PDF(s)
+    // const selectedFiles = Array.from(
+    //   document.querySelectorAll(".file-item input[type='checkbox']:checked")
+    // ).map((checkbox) => {
+    //   const fileItem = checkbox.closest(".file-item");
+    //   return fileItem.querySelector(".file-name").textContent;
+    // });
+
+    // // Get ticked URL(s)
+    // const selectedLinks = Array.from(
+    //   document.querySelectorAll(".link-item input[type='checkbox']:checked")
+    // ).map((checkbox) => {
+    //   const linkItem = checkbox.closest(".link-item");
+    //   return linkItem.querySelector(".link-name").textContent;
+    // });
+
+    //! Lấy các tệp PDF đã tick
+  const selectedFiles = Array.from(
+    document.querySelectorAll(".file-item input[type='checkbox']:checked")
+  ).map((checkbox) => {
+    const fileItem = checkbox.closest(".file-item");
+    const fileName = fileItem.querySelector(".file-name").textContent;
+    const group = data.groups.find((g) => g.id === currentGroup);
+    const file = group.files.find((f) => f.name === fileName);
+    return file.path;  // Gửi đường dẫn tệp thay vì tên
+  });
+
+  //! Lấy các liên kết đã tick
+  const selectedLinks = Array.from(
+    document.querySelectorAll(".link-item input[type='checkbox']:checked")
+  ).map((checkbox) => {
+    const linkItem = checkbox.closest(".link-item");
+    const linkName = linkItem.querySelector(".link-name").textContent;
+    const group = data.groups.find((g) => g.id === currentGroup);
+    const link = group.links.find((l) => l.name === linkName);
+    return link.url;  // Gửi URL thay vì tên
+  });
+
+    // Check if any PDFs or links are ticked
+    if (selectedFiles.length === 0 && selectedLinks.length === 0) {
+      alert("Please select at least one file or link to process.");
+      return;
+    }
+
+    // Add user message to UI
     addMessage(text, true);
 
     // Clear input
@@ -208,7 +252,11 @@ document.addEventListener("DOMContentLoaded", function () {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ question: text }),
+        body: JSON.stringify({ 
+          question: text,
+          files: selectedFiles,
+          links: selectedLinks,
+        }),
       });
         
       if (!response.ok) {
@@ -269,7 +317,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // Add a file to the current group
-  function addFile(name, type) {
+  function addFile(name, type, path) {
     if (!currentGroup) return;
 
     const group = data.groups.find((g) => g.id === currentGroup);
@@ -278,6 +326,7 @@ document.addEventListener("DOMContentLoaded", function () {
         id: generateId(),
         name,
         type,
+        path, //! Save file path
       });
       renderFiles();
     }
@@ -292,7 +341,7 @@ document.addEventListener("DOMContentLoaded", function () {
       group.links.push({
         id: generateId(),
         name,
-        url,
+        url, //! Save URL
       });
       renderLinks();
     }
@@ -552,7 +601,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // File Upload Change
-    fileUpload.addEventListener("change", function () {
+    fileUpload.addEventListener("change", async function () {
       if (this.files.length > 0) {
         const file = this.files[0];
         const fileName = file.name;
@@ -564,11 +613,32 @@ document.addEventListener("DOMContentLoaded", function () {
           return;
         }
 
-        // Add file to current group
-        addFile(fileName, extension);
+        // Upload files to server
+        const formData = new FormData();
+        formData.append("file", file); // Add file to FormData
 
-        // Reset file input
-        this.value = "";
+        try {
+          const response = await fetch("http://127.0.0.1:5000/upload", {
+            method: "POST",
+            body: formData,
+          });
+          
+          if (!response.ok) {
+            throw new Error("Upload failed");
+          }
+
+          const data = await response.json();
+          const filepath = data.path; // Get path from server
+
+          // Call addFile with path from server
+          addFile(fileName, extension, filepath);
+
+          // Reset file input
+          this.value = "";
+        } catch (error) {
+          console.error("Error uploading file:", error);
+          alert("An error occurred while uploading file, please try again!");
+        }
       }
     });
 
