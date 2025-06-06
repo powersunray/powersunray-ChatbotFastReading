@@ -25,35 +25,66 @@ document.addEventListener("DOMContentLoaded", function () {
   let currentContextTarget = null;
   let currentItemType = null; // 'file', 'link', or 'group'
 
-  // Data Storage (In a real app, this would be stored in a database)
-  const data = {
-    groups: [
-      { id: "compliance", name: "Compliance", files: [], links: [] },
-      {
-        id: "hardware-management",
-        name: "Hardware Management",
-        files: [],
-        links: [],
-      },
-      { id: "operations", name: "Operations", files: [], links: [] },
-      { id: "risk", name: "Risk", files: [], links: [] },
-      {
-        id: "software-development",
-        name: "Software Development",
-        files: [],
-        links: [],
-      },
-      {
-        id: "vendor-management",
-        name: "Vendor Management",
-        files: [],
-        links: [],
-      },
-    ],
-  };
+  // Data Storage with expiration
+  const STORAGE_KEY = "chatbot_data";
+  // const EXPIRATION_DAYS = 3;
+  const EXPIRATION_DAYS = 1;
+  //! Data Storage (In a real app, this would be stored in a database)
+
+  // Restore data from localStorage / initialize default data
+  function getStoredData() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try{
+        const { data, timestamp } = JSON.parse(stored);
+        const now = new Date();
+        const storedDate = new Date(timestamp);
+        const diffTime = Math.abs(now - storedDate);
+        // const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const diffDays = Math.ceil(diffTime / (1000 * 60)); //! minute
+        if (diffDays <= EXPIRATION_DAYS) {
+          return data;
+        }
+      } catch (e) {
+        console.error("localStorage data is invalid:", e);
+        localStorage.removeItem(STORAGE_KEY); // Delete corrupted data
+      }
+    }
+
+    // Default data if expired/doesn't have stored data
+    return {
+      groups: [
+        { id: "compliance", name: "Compliance", files: [], links: [] },
+        { id: "hardware-management", name: "Hardware Management", files: [], links: [] },
+        { id: "operations", name: "Operations", files: [], links: [] },
+        { id: "risk", name: "Risk", files: [], links: [] },
+        { id: "software-development", name: "Software Development", files: [], links: [] },
+        { id: "vendor-management", name: "Vendor Management", files: [], links: [] },
+      ],
+      chats: {}, // Save chat history for each group chats
+    };
+  }
+
+  // Save data in localStorage
+  function saveData() {
+    const now = new Date();
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        data: {
+          groups: data.groups,
+          chats: data.chats,
+        },
+        timestamp: now.toISOString(),
+      })
+    );
+  }
+
+  const data = getStoredData();
 
   // Initialize the UI
   function init() {
+    console.log("Initialize with data:", data);
     // Add event listeners
     addEventListeners();
 
@@ -62,6 +93,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Render the document groups
     renderDocumentGroups();
+    //! New
+    if (currentGroup) {
+      renderChatHistory(currentGroup);
+    }
   }
 
   // Sort groups alphabetically by name
@@ -115,6 +150,7 @@ document.addEventListener("DOMContentLoaded", function () {
       let iconClass = "fas fa-file";
       if (file.type === "pdf") iconClass = "fas fa-file-pdf";
       else if (file.type === "docx") iconClass = "fas fa-file-word";
+      else if (file.type === "doc") iconClass = "fas fa-file-word";
       else if (file.type === "xlsx") iconClass = "fas fa-file-excel";
 
       fileItem.innerHTML = `
@@ -164,6 +200,30 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+
+  //! Render chat history for the selected group
+  // function renderChatHistory(groupId) {
+  //   chatMessages.innerHTML = "";
+  //   const chatHistory = data.chats[groupId] || [];
+  //   chatHistory.forEach((message) => {
+  //     addMessage(message.text, message.isUser);
+  //   });
+  // }
+
+  function renderChatHistory(groupId) {
+    chatMessages.innerHTML = "";
+    if (!data || !data.chats || !data.chats[groupId]) {
+      // addMessage("Welcome to this chat!", false); // Default message
+      return; // Check if data is not undefined and has chat history for current group
+    }
+
+    // chatMessages.innerHTML = "";
+    const chatHistory = data.chats[groupId];
+    chatHistory.forEach((message) => {
+      addMessage(message.text, message.isUser);
+    });
+  }
+
   // Add a new message to the chat
   function addMessage(text, isUser = false) {
     const messageDiv = document.createElement("div");
@@ -178,6 +238,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Scroll to the bottom of the chat
     chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    //! Save messages into current group's chat history
+    if (currentGroup) {
+      if (!data.chats[currentGroup]) {
+        data.chats[currentGroup] = [];
+      }
+      data.chats[currentGroup].push({ text, isUser });
+      if (data.chats[currentGroup].length > 50) {
+        data.chats[currentGroup].shift(); // Delete oldest message
+      }
+      saveData();
+    }
   }
 
   // Handle sending a message
@@ -185,43 +257,27 @@ document.addEventListener("DOMContentLoaded", function () {
     const text = chatInput.value.trim();
     if (text === "") return;
 
-    // // Get ticked PDF(s)
-    // const selectedFiles = Array.from(
-    //   document.querySelectorAll(".file-item input[type='checkbox']:checked")
-    // ).map((checkbox) => {
-    //   const fileItem = checkbox.closest(".file-item");
-    //   return fileItem.querySelector(".file-name").textContent;
-    // });
+    //! Get ticked PDFs
+    const selectedFiles = Array.from(
+      document.querySelectorAll(".file-item input[type='checkbox']:checked")
+    ).map((checkbox) => {
+      const fileItem = checkbox.closest(".file-item");
+      const fileName = fileItem.querySelector(".file-name").textContent;
+      const group = data.groups.find((g) => g.id === currentGroup);
+      const file = group.files.find((f) => f.name === fileName);
+      return file.path;  // Send file path instead of name
+    });
 
-    // // Get ticked URL(s)
-    // const selectedLinks = Array.from(
-    //   document.querySelectorAll(".link-item input[type='checkbox']:checked")
-    // ).map((checkbox) => {
-    //   const linkItem = checkbox.closest(".link-item");
-    //   return linkItem.querySelector(".link-name").textContent;
-    // });
-
-    //! Lấy các tệp PDF đã tick
-  const selectedFiles = Array.from(
-    document.querySelectorAll(".file-item input[type='checkbox']:checked")
-  ).map((checkbox) => {
-    const fileItem = checkbox.closest(".file-item");
-    const fileName = fileItem.querySelector(".file-name").textContent;
-    const group = data.groups.find((g) => g.id === currentGroup);
-    const file = group.files.find((f) => f.name === fileName);
-    return file.path;  // Gửi đường dẫn tệp thay vì tên
-  });
-
-  //! Lấy các liên kết đã tick
-  const selectedLinks = Array.from(
-    document.querySelectorAll(".link-item input[type='checkbox']:checked")
-  ).map((checkbox) => {
-    const linkItem = checkbox.closest(".link-item");
-    const linkName = linkItem.querySelector(".link-name").textContent;
-    const group = data.groups.find((g) => g.id === currentGroup);
-    const link = group.links.find((l) => l.name === linkName);
-    return link.url;  // Gửi URL thay vì tên
-  });
+    //! Get ticked URLs
+    const selectedLinks = Array.from(
+      document.querySelectorAll(".link-item input[type='checkbox']:checked")
+    ).map((checkbox) => {
+      const linkItem = checkbox.closest(".link-item");
+      const linkName = linkItem.querySelector(".link-name").textContent;
+      const group = data.groups.find((g) => g.id === currentGroup);
+      const link = group.links.find((l) => l.name === linkName);
+      return link.url;  // Send URL instead of name
+    });
 
     // Check if any PDFs or links are ticked
     if (selectedFiles.length === 0 && selectedLinks.length === 0) {
@@ -234,15 +290,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Clear input
     chatInput.value = "";
-
-    // // Simulate bot response (in a real app, this would call an API)
-    // setTimeout(() => {
-    //   addMessage(
-    //     'I received your message: "' +
-    //       text +
-    //       '". How can I help you with these documents?'
-    //   );
-    // }, 1000);
 
     // Send request to Flask backend
     try {
@@ -263,14 +310,14 @@ document.addEventListener("DOMContentLoaded", function () {
         throw new Error("Network response was not ok");
       }
 
-      const data = await response.json();
+      const responseData = await response.json();
 
       // Display answer from chatbot
-      addMessage(data.answer, false);
+      addMessage(responseData.answer, false);
 
       // Display source if there is
-      if (data.sources && data.sources.length > 0) {
-        addMessage(`Source: ${data.sources.join(", ")}`, false);
+      if (responseData.sources && responseData.sources.length > 0) {
+        addMessage(`Source: ${responseData.sources.join(", ")}`, false);
       }
     } catch (error) {
       console.error("Error:", error);
@@ -289,6 +336,8 @@ document.addEventListener("DOMContentLoaded", function () {
     data.groups.push({ id, name, files: [], links: [] });
     sortGroups();
     renderDocumentGroups();
+    //! New
+    saveData();
   }
 
   // Rename a group
@@ -298,6 +347,8 @@ document.addEventListener("DOMContentLoaded", function () {
       group.name = newName;
       sortGroups();
       renderDocumentGroups();
+      //! New
+      saveData();
     }
   }
 
@@ -306,12 +357,18 @@ document.addEventListener("DOMContentLoaded", function () {
     const index = data.groups.findIndex((g) => g.id === id);
     if (index !== -1) {
       data.groups.splice(index, 1);
+      //! New
+      delete data.chats[id]; // Delete group chat's history
       renderDocumentGroups();
+      //! New
+      saveData();
 
       if (currentGroup === id) {
         currentGroup = null;
         renderFiles();
         renderLinks();
+        //! New
+        chatMessages.innerHTML = "";
       }
     }
   }
@@ -329,6 +386,8 @@ document.addEventListener("DOMContentLoaded", function () {
         path, //! Save file path
       });
       renderFiles();
+      //! New
+      saveData();
     }
   }
 
@@ -344,6 +403,8 @@ document.addEventListener("DOMContentLoaded", function () {
         url, //! Save URL
       });
       renderLinks();
+      //! New
+      saveData();
     }
   }
 
@@ -359,12 +420,16 @@ document.addEventListener("DOMContentLoaded", function () {
       if (file) {
         file.name = newName;
         renderFiles();
+        //! New
+        saveData();
       }
     } else if (type === "link") {
       const link = group.links.find((l) => l.id === id);
       if (link) {
         link.name = newName;
         renderLinks();
+        //! New
+        saveData();
       }
     }
   }
@@ -381,12 +446,16 @@ document.addEventListener("DOMContentLoaded", function () {
       if (index !== -1) {
         group.files.splice(index, 1);
         renderFiles();
+        //! New
+        saveData();
       }
     } else if (type === "link") {
       const index = group.links.findIndex((l) => l.id === id);
       if (index !== -1) {
         group.links.splice(index, 1);
         renderLinks();
+        //! New
+        saveData();
       }
     }
   }
@@ -397,6 +466,7 @@ document.addEventListener("DOMContentLoaded", function () {
     documentGroups.addEventListener("click", function (e) {
       const li = e.target.closest(".list-group-item");
       if (li && !e.target.classList.contains("group-menu-trigger")) {
+        console.log("Change to group:", li.dataset.group);
         // Remove active class from all items
         document
           .querySelectorAll(".document-groups .list-group-item")
@@ -413,6 +483,8 @@ document.addEventListener("DOMContentLoaded", function () {
         // Render files and links for the selected group
         renderFiles();
         renderLinks();
+        //! New
+        renderChatHistory(currentGroup); // Show chat history of new group
       }
     });
 
@@ -608,8 +680,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Check file extension
         const extension = fileName.split(".").pop().toLowerCase();
-        if (["pdf", "docx", "xlsx"].indexOf(extension) === -1) {
-          alert("Only PDF, DOCX, and XLSX files are allowed.");
+        if (["pdf", "docx", "xlsx", "doc"].indexOf(extension) === -1) {
+          alert("Only PDF, DOCX, DOC, and XLSX files are allowed.");
           return;
         }
 
@@ -627,8 +699,8 @@ document.addEventListener("DOMContentLoaded", function () {
             throw new Error("Upload failed");
           }
 
-          const data = await response.json();
-          const filepath = data.path; // Get path from server
+          const responseData = await response.json();
+          const filepath = responseData.path; // Get path from server
 
           // Call addFile with path from server
           addFile(fileName, extension, filepath);

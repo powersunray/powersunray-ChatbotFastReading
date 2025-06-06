@@ -19,5 +19,5 @@ OLD_*.py
 backend/*
 !backend/chatbot.py
 !backend/process_documents.py
-
+!backend/app.py
 # === frontend/ is kept entirely, so no ignore needed
