@@ -11,6 +11,12 @@ UPLOAD_FOLDER = "uploads"
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
     
+# Allowed extensions
+ALLOWED_EXTENSIONS = {'pdf', 'docx', 'doc', 'xlsx'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
@@ -18,10 +24,12 @@ def upload_file():
     file = request.files["file"]
     if file.filename == "":
         return jsonify({"error": "No selected file"}), 400
-    if file:
+    if file and allowed_file(file.filename):
         filepath = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(filepath)
         return jsonify({"path": filepath}), 200
+    else:
+        return jsonify({"error": "File type not allowed"}), 400
 
 
 @app.route('/ask', methods=['POST'])

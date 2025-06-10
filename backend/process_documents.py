@@ -3,7 +3,7 @@ import requests
 from bs4 import BeautifulSoup # For link
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from docx import Document # For .docx
-import textract
+# import textract
 import subprocess
 import openpyxl # For .xlsx
 import os
@@ -47,41 +47,12 @@ def extract_text_from_docx(docx_path):
         return ""
 
 #! doc antiword 01  
-# def extract_text_from_doc(doc_path):
-#     try:
-#         # result = subprocess.run(['antiword', doc_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-#         # text = result.stdout.decode('utf-8')
-#         # return text
-#         result = subprocess.run(['antiword', doc_path], capture_output=True, text=True)
-#         return result.stdout
-#     except Exception as e:
-#         print(f"Error processing {doc_path}: {e}")
-#         return ""
-
-#! doc antiword 02
-# def extract_text_from_doc(doc_path):
-#     try:
-#         # Gọi antiword để trích xuất văn bản từ file .doc
-#         result = subprocess.run(['antiword', doc_path], capture_output=True, text=True, check=True)
-#         if result.stdout:
-#             return result.stdout
-#         else:
-#             print(f"No text extracted from {doc_path}")
-#             return ""
-#     except subprocess.CalledProcessError as e:
-#         print(f"Antiword error for {doc_path}: {e.stderr}")
-#         return ""
-#     except FileNotFoundError:
-#         print("Antiword not found. Ensure it is installed and added to PATH.")
-#         return ""
-#     except Exception as e:
-#         print(f"Error processing {doc_path}: {e}")
-#         return ""
-
-#! doc textract 01
 def extract_text_from_doc(doc_path):
     try:
-        text = textract.process(doc_path).decode('utf-8')
+        result = subprocess.run(['antiword', doc_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        text = result.stdout.decode('utf-8')
+        if not text.strip():
+            raise ValueError("antiword returned empty")
         return text
     except Exception as e:
         print(f"Error processing {doc_path}: {e}")
@@ -120,8 +91,10 @@ def get_document_chunks(selected_files, selected_links):
             documents[file_path] = extract_text_from_doc(file_path)
         elif ext == '.xlsx':
             documents[file_path] = extract_text_from_excel(file_path)
-        else:
-            print(f"Unsupported file type: {file_path}, extension: {ext}")
+        # else:
+        #     print(f"Unsupported file type: {file_path}, extension: {ext}")
+
+        print(f"Extracted from {file_path} -> {len(documents[file_path])} chars")
         
     # List of URLs
     # urls = ['https://thuvienphapluat.vn/page/tim-van-ban.aspx?keyword=th%C3%B4ng%20t%C6%B0&match=True&area=0']

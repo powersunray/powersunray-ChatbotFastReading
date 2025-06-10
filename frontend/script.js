@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Data Storage with expiration
   const STORAGE_KEY = "chatbot_data";
   // const EXPIRATION_DAYS = 3;
-  const EXPIRATION_DAYS = 1;
+  const EXPIRATION_DAYS = 10;
   //! Data Storage (In a real app, this would be stored in a database)
 
   // Restore data from localStorage / initialize default data
@@ -40,8 +40,8 @@ document.addEventListener("DOMContentLoaded", function () {
         const now = new Date();
         const storedDate = new Date(timestamp);
         const diffTime = Math.abs(now - storedDate);
-        // const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        const diffDays = Math.ceil(diffTime / (1000 * 60)); //! minute
+        // const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); //! days
+        const diffDays = Math.ceil(diffTime / (1000 * 60)); //! minutes
         if (diffDays <= EXPIRATION_DAYS) {
           return data;
         }

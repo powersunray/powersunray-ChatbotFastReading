@@ -14,11 +14,19 @@ def chatbot(question, selected_files, selected_links):
     # Get chunks from selected files and links
     chunks_with_metadata = get_document_chunks(selected_files, selected_links)
     
+    if not chunks_with_metadata:
+        raise ValueError("No text extracted from the selected documents or links.")
+    
     # Create vector stores from them
     embeddings = TogetherEmbeddings(
         api_key=os.getenv("TOGETHER_AI_API_KEY"),
         model="togethercomputer/m2-bert-80M-32k-retrieval"
     )
+    texts = [chunk["text"] for chunk in chunks_with_metadata if chunk["text"].strip()]
+    metadatas = [{"source": chunk["source"]} for chunk in chunks_with_metadata if chunk["text"].strip()]
+
+    if not texts:
+        raise ValueError("No valid (non-empty) text chunks found to build vector store.")
     vector_store = FAISS.from_texts(
         [chunk["text"] for chunk in chunks_with_metadata],
         embeddings,
@@ -59,23 +67,6 @@ def chatbot(question, selected_files, selected_links):
     
     # Create answer using the LLM
     response = chain.run(input_documents=matches, question=question)
-    
-    # # Get sources list and eliminate duplicate sources
-    # sources = [match.metadata["source"] for match in matches]
-    # unique_sources = list(set(sources))
-    
-    #! New
-    # # Filter sources based on relevance to the response
-    # unique_sources = []
-    # if "không được đề cập trong file" not in response and "not mentioned in the file" not in response:
-    #     # Extract key terms from the response (simple approach: split into words)
-    #     response_terms = set(re.findall(r'\w+', response.lower()))
-    #     for match in matches:
-    #         match_text = match.page_content.lower()
-    #         # Check if any term in the response is in the match text
-    #         if any(term in match_text for term in response_terms):
-    #             if match.metadata["source"] not in unique_sources:
-    #                 unique_sources.append(match.metadata["source"])
                     
     #! New 02
     # Filter sources based on relevance to the response
