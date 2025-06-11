@@ -3,7 +3,6 @@ import requests
 from bs4 import BeautifulSoup # For link
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from docx import Document # For .docx
-# import textract
 import subprocess
 import openpyxl # For .xlsx
 import os
@@ -73,14 +72,7 @@ def extract_text_from_excel(xlsx_path):
 def get_document_chunks(selected_files, selected_links):
     documents = {}
     
-    # List of PDFs
-    # pdf_files = ['27_2025_TT-BTC_658258.pdf', '03_2025_TT-BNNMT_657315.pdf']
-    # for pdf in pdf_files:
-    
-    # for pdf in selected_files:
-    #     documents[pdf] = extract_text_from_pdf(pdf)
-    
-    #! New: List of uploaded files
+    # List of files
     for file_path in selected_files:
         ext = os.path.splitext(file_path)[1].lower()
         if ext == '.pdf':
@@ -97,15 +89,15 @@ def get_document_chunks(selected_files, selected_links):
         print(f"Extracted from {file_path} -> {len(documents[file_path])} chars")
         
     # List of URLs
-    # urls = ['https://thuvienphapluat.vn/page/tim-van-ban.aspx?keyword=th%C3%B4ng%20t%C6%B0&match=True&area=0']
-    # for url in urls:
     for url in selected_links:
         documents[url] = extract_text_from_url(url)
         
     # Split text and save the sources
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=300,
+        # chunk_size=1000,
+        # chunk_overlap=300,
+        chunk_size=1000,  #! NEW
+        chunk_overlap=150,
     )
     chunks_with_metadata = []
     for source, text in documents.items():
