@@ -6,6 +6,8 @@ from docx import Document # For .docx
 import subprocess
 import openpyxl # For .xlsx
 import os
+from database import db
+from models import DBDocument, Link, DocumentChunk 
 
 def extract_text_from_pdf(pdf_path):
     try:
@@ -23,10 +25,6 @@ def extract_text_from_url(url):
     try:
         response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.content, 'html.parser')
-        # Filter to get main content, remove irrelevant parts
-        # main_content = soup.find('div', {'class': 'content'}) #! Modify class if needed
-        # text = main_content.get_text(separator=' ') if main_content else soup.get_text(separator=' ')
-        # return text
         main_contents = soup.find_all(['div', 'p'], class_=['content', 'content1', 'content-1', 'content-0', 'nqContent'])
         text = ''
         for content in main_contents:
@@ -69,39 +67,40 @@ def extract_text_from_excel(xlsx_path):
         print(f"Error processing {xlsx_path}: {e}")
         return ""
     
-def get_document_chunks(selected_files, selected_links):
-    documents = {}
-    
-    # List of files
-    for file_path in selected_files:
-        ext = os.path.splitext(file_path)[1].lower()
+def process_and_store_chunks(source, source_type, session_id):
+    if source_type == 'file':
+        ext = os.path.splitext(source)[1].lower()
         if ext == '.pdf':
-            documents[file_path] = extract_text_from_pdf(file_path)
+            text = extract_text_from_pdf(source)
         elif ext == '.docx':
-            documents[file_path] = extract_text_from_docx(file_path)
+            text = extract_text_from_docx(source)
         elif ext == '.doc':
-            documents[file_path] = extract_text_from_doc(file_path)
+            text = extract_text_from_doc(source)
         elif ext == '.xlsx':
-            documents[file_path] = extract_text_from_excel(file_path)
-        # else:
-        #     print(f"Unsupported file type: {file_path}, extension: {ext}")
-
-        print(f"Extracted from {file_path} -> {len(documents[file_path])} chars")
-        
-    # List of URLs
-    for url in selected_links:
-        documents[url] = extract_text_from_url(url)
-        
-    # Split text and save the sources
+            text = extract_text_from_excel(source)
+        else:
+            print(f"Unsupported file type: {source}")
+            return
+    elif source_type == 'link':
+        text = extract_text_from_url(source)
+    else:
+        print("Invalid source type")
+        return
+    
+    # Split into chunks
     text_splitter = RecursiveCharacterTextSplitter(
-        # chunk_size=1000,
-        # chunk_overlap=300,
-        chunk_size=1000,  #! NEW
+        chunk_size=1000,
         chunk_overlap=150,
     )
-    chunks_with_metadata = []
-    for source, text in documents.items():
-        chunks = text_splitter.split_text(text)
-        for chunk in chunks:
-            chunks_with_metadata.append({"text": chunk, "source": source})
-    return chunks_with_metadata
+    chunks = text_splitter.split_text(text)
+    
+    # Save chunks into database
+    for chunk in chunks:
+        chunk_entry = DocumentChunk(
+            session_id=session_id,
+            document_id=DBDocument.query.filter_by(filepath=source).first().id if source_type == 'file' else None,
+            link_id=Link.query.filter_by(url=source).first().id if source_type == 'link' else None,
+            chunk_text=chunk
+        )
+        db.session.add(chunk_entry)
+    db.session.commit()

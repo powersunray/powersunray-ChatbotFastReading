@@ -1,10 +1,10 @@
-from process_documents import get_document_chunks
 from langchain_together import TogetherEmbeddings, Together
 from langchain_community.vectorstores import FAISS
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 import os
 import re
+from models import DocumentChunk
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -31,18 +31,18 @@ def trim_to_last_sentence(text, max_length=700):
     return result.strip()
 
 # Chatbot function
-def chatbot(question, selected_files, selected_links):
-    # Get chunks from selected files and links
-    chunks_with_metadata = get_document_chunks(selected_files, selected_links)
-    if not chunks_with_metadata:
-        raise ValueError("No text extracted from the selected documents or links.")
+def chatbot(question, session_id, file_ids, link_ids):
+    # Get chunks from database
+    chunks = DocumentChunk.query.filter(
+        (DocumentChunk.session_id == session_id) &
+        ( (DocumentChunk.document_id.in_(file_ids)) | (DocumentChunk.link_id.in_(link_ids)) )
+    ).all()
     
-    # Filter non-empty text
-    texts = [chunk["text"] for chunk in chunks_with_metadata if chunk["text"].strip()]
-    metadatas = [{"source": chunk["source"]} for chunk in chunks_with_metadata if chunk["text"].strip()]
-
-    if not texts:
-        raise ValueError("No valid (non-empty) text chunks found to build vector store.")
+    if not chunks:
+        raise ValueError("No chunks were found for the selected documents or links.")
+    
+    texts = [chunk.chunk_text for chunk in chunks]
+    metadatas = [{"source": chunk.document_id or chunk.link_id} for chunk in chunks]
     
     # Create vector stores
     embeddings = TogetherEmbeddings(
@@ -65,13 +65,9 @@ def chatbot(question, selected_files, selected_links):
         max_tokens=800,  # faster response with tighter focus
     )
     
-    # # Create QA chain
-    # chain = load_qa_chain(llm, chain_type="stuff")
-    
     # Define a specific prompt to restrict LLM to provided documents
     prompt_template = PromptTemplate(
         input_variables=["question", "context"],
-        # template="Chỉ trả lời câu hỏi '{question}' dựa trên thông tin từ đoạn văn bản sau: {context}. Nếu không tìm thấy thông tin liên quan trong đoạn văn bản, hãy trả lời: 'Thông tin bạn hỏi không được đề cập trong file.'"
         template= (
             "Answer the question '{question}' based only on the information from the following text: {context}. "
             "If the question asks for a summary or overview (e.g., 'File hiện tại chứa thông tin gì?'), provide a concise and brief summary of the main topics in the text. "
@@ -80,14 +76,6 @@ def chatbot(question, selected_files, selected_links):
             "Ensure the entire response, including this message, is in the same language as the question '{question}'."
             "Keep answers short, 600 tokens max, and end naturally so as not to be cut off within the 600 token limit."
         )
-        #! NEW
-        # template=(
-        #     "You are a document assistant. Answer the question: '{question}' based strictly on this content: {context}.\n"
-        #     "- If the question asks for a summary, summarize only what is present.\n"
-        #     "- If nothing relevant is found, reply 'Thông tin bạn hỏi không được đề cập trong file.'\n"
-        #     "- Always respond in the same language as the question. '\n"
-        #     "- Keep your answer clear, under 800 tokens, and make sure it ends naturally."
-        # )
     )
     
     # Create QA chain with the custom prompt
@@ -118,7 +106,8 @@ def chatbot(question, selected_files, selected_links):
             # print("Match text:", match_text)
             # Check if any term in the response is in the match text
             if any(term in match_text for term in relevant_terms):
-                if match.metadata["source"] not in unique_sources:
-                    unique_sources.append(match.metadata["source"])
+                source = match.metadata["source"]
+                if source not in unique_sources:
+                    unique_sources.append(source)
     
     return response, unique_sources

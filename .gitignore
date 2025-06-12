@@ -15,9 +15,16 @@ venv/
 *.pdf
 OLD_*.py
 
-# === Ignore everything else in backend except 2 files ===
+# === Ignore everything else in backend except 5 files ===
 backend/*
-!backend/chatbot.py
+!backend/chat_service.py
 !backend/process_documents.py
 !backend/app.py
-# === frontend/ is kept entirely, so no ignore needed
+!backend/models.py
+!backend/database.py
+
+# === Ignore everything else in frontend except 3 files ===
+frontend/*
+!frontend/index.html
+!frontend/styles.css
+!frontend/script.js

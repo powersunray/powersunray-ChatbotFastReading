@@ -26,65 +26,24 @@
       </header>
 
       <div class="row main-content">
-        <!-- Left Sidebar - Document Groups -->
+        <!-- Left Sidebar - Chat Sessions -->
         <div class="col-md-3 left-sidebar p-3 border-end">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h4>Document Groups</h4>
             <button
               class="btn btn-sm btn-success add-group-btn"
-              title="Add New Group"
+              title="Create New Session"
             >
               <i class="fas fa-plus"></i>
             </button>
           </div>
           <ul class="list-group document-groups">
-            <li
-              class="list-group-item d-flex justify-content-between align-items-center"
-              data-group="compliance"
-            >
-              Compliance
-              <i class="fas fa-ellipsis-v group-menu-trigger"></i>
-            </li>
-            <li
-              class="list-group-item d-flex justify-content-between align-items-center"
-              data-group="hardware-management"
-            >
-              Hardware Management
-              <i class="fas fa-ellipsis-v group-menu-trigger"></i>
-            </li>
-            <li
-              class="list-group-item d-flex justify-content-between align-items-center"
-              data-group="operations"
-            >
-              Operations
-              <i class="fas fa-ellipsis-v group-menu-trigger"></i>
-            </li>
-            <li
-              class="list-group-item d-flex justify-content-between align-items-center"
-              data-group="risk"
-            >
-              Risk
-              <i class="fas fa-ellipsis-v group-menu-trigger"></i>
-            </li>
-            <li
-              class="list-group-item d-flex justify-content-between align-items-center"
-              data-group="software-development"
-            >
-              Software Development
-              <i class="fas fa-ellipsis-v group-menu-trigger"></i>
-            </li>
-            <li
-              class="list-group-item d-flex justify-content-between align-items-center"
-              data-group="vendor-management"
-            >
-              Vendor Management
-              <i class="fas fa-ellipsis-v group-menu-trigger"></i>
-            </li>
+            <!-- Các phiên chat sẽ được load động từ backend -->
           </ul>
-          <!-- Context Menu for Groups -->
+          <!-- Context Menu for Sessions -->
           <div class="dropdown-menu group-context-menu">
-            <a class="dropdown-item rename-group" href="#">Rename</a>
-            <a class="dropdown-item delete-group" href="#">Delete</a>
+            <a class="dropdown-item rename-group" href="#">Rename Session</a>
+            <a class="dropdown-item delete-group" href="#">Delete Session</a>
           </div>
         </div>
 
@@ -94,8 +53,8 @@
             <div class="chat-messages" id="chatMessages">
               <div class="message bot-message">
                 <div class="message-content">
-                  Hello! I'm your document reading assistant. Select documents
-                  from the sidebar and ask me questions about them.
+                  Hello! I'm your document reading assistant. Select a document
+                  group and ask me questions about your documents.
                 </div>
               </div>
             </div>
@@ -127,7 +86,7 @@
                 <input
                   type="file"
                   id="fileUpload"
-                  accept=".pdf,.docx,.xlsx"
+                  accept=".pdf,.docx,.xlsx,.doc"
                   style="display: none"
                 />
               </div>
@@ -166,7 +125,7 @@
     </div>
 
     <!-- Modals -->
-    <!-- Add/Rename Group Modal -->
+    <!-- Add/Rename Session Modal -->
     <div class="modal fade" id="groupModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-content">
