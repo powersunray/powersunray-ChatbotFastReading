@@ -16,6 +16,7 @@ class DBDocument(db.Model):
 class Link(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.Integer, db.ForeignKey('chat_session.id'))
+    name = db.Column(db.String(255), nullable=True)
     url = db.Column(db.String(255), nullable=False)
     added_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 

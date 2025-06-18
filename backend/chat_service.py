@@ -9,17 +9,38 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-def clean_redundant_ending(text):
+def clean_redundant(text, question):
+    # Eliminate the first sentence if it is similar to the question
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    if sentences and sentences[0].strip() == question.strip():
+        text = ' '.join(sentences[1:])
+    
+    # Eliminate unwanted phrases
     patterns = [
         r"(Tôi luôn sẵn.*?)(?=(Tôi luôn sẵn|Xin chào|Xin cảm ơn|$))",
         r"Xin chào.*",
         r"Xin cảm ơn.*",
         r"Nếu bạn cần thêm.*",
-        r"Chúc bạn thành công.*"
+        r"Chúc bạn thành công.*",
+        r"Tôi hy vọng.*",
+        r"Tôi sẵn sàng.*",
+        r"Tôi luôn sẵn lòng.*",
+        r"Hãy cho tôi biết.*",
+        r"Tôi chúc bạn.*",
+        r"\|\s*\|",
     ]
     for p in patterns:
-        text = re.sub(p, '', text)
-    return text.strip()
+        text = re.sub(p, '', text, flags=re.IGNORECASE)
+        
+    # Eliminate repeated sentences
+    seen = set()
+    unique_sentences = []
+    for sentence in re.split(r'(?<=[.!?])\s+', text):
+        if sentence not in seen:
+            seen.add(sentence)
+            unique_sentences.append(sentence)
+
+    return ' '.join(unique_sentences).strip()
 
 def trim_to_last_sentence(text, max_length=700):
     sentences = re.split(r'(?<=[.!?])\s+', text)
@@ -71,6 +92,7 @@ def chatbot(question, session_id, file_ids, link_ids):
         template= (
             "Answer the question '{question}' based only on the information from the following text: {context}. "
             "If the question asks for a summary or overview (e.g., 'File hiện tại chứa thông tin gì?'), provide a concise and brief summary of the main topics in the text. "
+            
             "If no relevant information is found in the text, reply with: 'Thông tin bạn hỏi không được đề cập trong file.' "
             "if the question is in Vietnamese, or 'The information you asked for is not mentioned in the file.' if the question is in English. "
             "Ensure the entire response, including this message, is in the same language as the question '{question}'."
@@ -81,33 +103,39 @@ def chatbot(question, session_id, file_ids, link_ids):
     # Create QA chain with the custom prompt
     chain = load_qa_chain(llm, chain_type="stuff", prompt=prompt_template)
     
+    ### ! FIRST WAY
     # Search and answer
-    # matches = vector_store.similarity_search(question, k=10)
-    matches = vector_store.similarity_search(question, k=5) #! NEW: reduce to top 5 for speed
+    matches = vector_store.similarity_search(question, k=15)
+    # matches = vector_store.similarity_search(question, k=5) #! NEW: reduce to top 5 for speed
     
     # Create answer using the LLM
     response = chain.run(input_documents=matches, question=question)
     #! NEW: Post-process to remove repeated phrases and trim
-    response = clean_redundant_ending(response)
+    response = clean_redundant(response, question)
     response = trim_to_last_sentence(response, max_length=700)
-                   
-    # Filter sources based on relevance to the response
-    unique_sources = []
-    if "không được đề cập trong file" not in response and "not mentioned in the file" not in response:
-        # Extract key terms from the question and response (simple approach: split into words)
-        question_terms = set(re.findall(r'\w+', question.lower()))
-        response_terms = set(re.findall(r'\w+', response.lower()))
-        relevant_terms = question_terms.union(response_terms) # Combine terms for better filtering
-        for match in matches:
-            match_text = match.page_content.lower()
-            #! DEBUG
-            # print("Question terms:", question_terms)
-            # print("Response terms:", response_terms)
-            # print("Match text:", match_text)
-            # Check if any term in the response is in the match text
-            if any(term in match_text for term in relevant_terms):
-                source = match.metadata["source"]
-                if source not in unique_sources:
-                    unique_sources.append(source)
+    
+    # Check if the response is exactly the "no information found" message
+    no_info_messages = [
+        "Thông tin bạn hỏi không được đề cập trong file.",
+        "The information you asked for is not mentioned in the file."
+    ]
+    if response.strip() in no_info_messages:
+        unique_sources = []
+    else:
+        # Filter sources based on relevance to the response
+        unique_sources = []
+        if matches:
+            # Extract key terms from the question and response (simple approach: split into words)
+            response_terms = set(re.findall(r'\w+', response.lower()))
+            for match in matches:
+                match_text = match.page_content.lower()
+                #! DEBUG
+                # print("Response terms:", response_terms)
+                # print("Match text:", match_text)
+                # Check if any term in the response is in the match text
+                if any(term in match_text for term in response_terms):
+                    source = match.metadata["source"]
+                    if source not in unique_sources:
+                        unique_sources.append(source)
     
     return response, unique_sources

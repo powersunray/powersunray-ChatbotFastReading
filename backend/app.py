@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_migrate import Migrate
 import os
 import shutil
 from database import db
@@ -15,7 +16,7 @@ app = Flask(__name__)
 # CORS(app) # Add CORS to allow frontend from diff port send requests
 CORS(app, resources={r"/*": {
     "origins": "http://127.0.0.1:8000",
-    "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "allow_headers": ["Content-Type"]
 }})  # Allow frontend to send request
     
@@ -32,8 +33,11 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Attach db with Flask app
 db.init_app(app)
 
+# Initialize Migrate
+migrate = Migrate(app, db)
+
 # Allowed extensions
-ALLOWED_EXTENSIONS = {'pdf', 'docx', 'doc', 'xlsx'}
+ALLOWED_EXTENSIONS = {'pdf', 'docx', 'doc', 'xlsx', 'pptx', 'png', 'jpg', 'jpeg', 'heic'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -119,19 +123,20 @@ def upload_file(session_id):
 @app.route('/sessions/<int:session_id>/links', methods=['GET'])
 def get_links(session_id):
     links = Link.query.filter_by(session_id=session_id).all()
-    return jsonify([{'id': l.id, 'url': l.url} for l in links])
+    return jsonify([{'id': l.id, 'name': l.name, 'url': l.url} for l in links])
 
 @app.route('/sessions/<int:session_id>/links', methods=['POST'])
 def add_link(session_id):
+    name = request.json.get('name', '')
     url = request.json.get('url')
     if not url:
         return jsonify({'error': 'URL is required'}), 400
-    link = Link(session_id=session_id, url=url)
+    link = Link(session_id=session_id, name=name, url=url)
     db.session.add(link)
     db.session.commit()
     # Save chunks
     process_and_store_chunks(url, 'link', session_id)
-    return jsonify({'id': link.id, 'url': link.url}), 201
+    return jsonify({'id': link.id, 'name':link.name, 'url': link.url}), 201
 
 # Chat history
 @app.route('/chat_history/<int:session_id>', methods=['GET'])
@@ -152,14 +157,35 @@ def ask_question(session_id):
     # Call chatbot with file_ids and link_ids
     answer, sources = chatbot(question, session_id, file_ids, link_ids)
 
+    # Resolve source IDs to names
+    source_names = []
+    for source in sources:
+        # Check if source is a file ID
+        # doc = DBDocument.query.get(source)
+        doc = db.session.get(DBDocument, source)
+        if doc:
+            source_names.append(doc.filename)
+        else:
+            # Check if source is a link ID
+            # link = Link.query.get(source)
+            link = db.session.get(Link, source)
+            if link:
+                source_names.append(link.name or link.url)
+                
+    # Format the source text
+    source_text = "SOURCE: " + ", ".join(source_names) if source_names else ""
+    
     # Save chat history
     user_message = ChatHistory(session_id=session_id, is_user=True, message=question)
     bot_message = ChatHistory(session_id=session_id, is_user=False, message=answer)
     db.session.add(user_message)
     db.session.add(bot_message)
+    if source_text:
+        source_message = ChatHistory(session_id=session_id, is_user=False, message=source_text)
+        db.session.add(source_message)
     db.session.commit()
 
-    return jsonify({'answer': answer, 'sources': sources})
+    return jsonify({'answer': answer, 'source_text': source_text})
     
 if __name__ == '__main__':
     # Create database the first time

@@ -45,7 +45,12 @@ document.addEventListener("DOMContentLoaded", function () {
   async function loadSessions() {
     try {
       const res = await fetch("http://127.0.0.1:5000/sessions");
-      if (!res.ok) throw new Error("Failed to fetch sessions");
+      if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error("Backend từ chối yêu cầu (403 Forbidden). Kiểm tra cấu hình CORS hoặc trạng thái backend.");
+        }
+        throw new Error("Failed to fetch sessions: " + res.statusText);
+      }
       let sessions = await res.json();
       console.log("Sessions fetched:", sessions);
 
@@ -99,19 +104,28 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // Load files, links, chats for a session
+  let fileMap = {};
+  let linkMap = {};
   async function loadSessionData(sessionId) {
     try {
       currentSessionId = sessionId;
-      // const res = await fetch(`/sessions/${sessionId}/assets`); //! assets or uploads?
       // Get files
       const filesRes = await fetch(`http://127.0.0.1:5000/sessions/${sessionId}/files`);
       if (!filesRes.ok) throw new Error("Failed to fetch files");
       const files = await filesRes.json();
+      fileMap = files.reduce((map, file) => {
+        map[file.id] = file.filename;
+        return map;
+      }, {});
 
       // Get links
       const linksRes = await fetch(`http://127.0.0.1:5000/sessions/${sessionId}/links`);
       if (!linksRes.ok) throw new Error("Failed to fetch links");
       const links = await linksRes.json();
+      linkMap = links.reduce((map, link) => {
+        map[link.id] = link.name || link.url;
+        return map;
+      }, {});
 
       // Get chat history
       const chatsRes = await fetch(`http://127.0.0.1:5000/chat_history/${sessionId}`);
@@ -151,7 +165,7 @@ document.addEventListener("DOMContentLoaded", function () {
         (l) => `
       <div class="link-item d-flex align-items-center" data-id="${l.id}">
         <div class="link-icon"><i class="fas fa-link"></i></div>
-        <div class="link-name">${l.url}</div>
+        <div class="link-name">${l.name || l.url}</div>
         <div class="link-checkbox"><input type="checkbox" class="form-check-input"></div>
       </div>`)
       .join("")
@@ -163,12 +177,12 @@ document.addEventListener("DOMContentLoaded", function () {
     chats.forEach((msg) => addMessage(msg.message, msg.is_user));
   }
 
-  function addMessage(text, isUser = false) {
+  function addMessage(message, isUser = false) {
     const div = document.createElement("div");
     div.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
     const content = document.createElement("div");
     content.className = "message-content";
-    content.textContent = text;
+    content.innerHTML = message;
     div.appendChild(content);
     chatMessages.appendChild(div);
     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -196,9 +210,6 @@ document.addEventListener("DOMContentLoaded", function () {
         groupContextMenu.style.left = `${rect.left}px`;
         groupContextMenu.classList.add("show");
       } 
-      // else if (!e.target.closest(".group-context-menu")) {
-      //   groupContextMenu.classList.remove("show");
-      // }
     });
 
     document.addEventListener("click", (e) => {
@@ -302,13 +313,14 @@ document.addEventListener("DOMContentLoaded", function () {
       document.getElementById("linkUrl").value = "";
       linkModal.show();
       document.getElementById("saveLinkBtn").onclick = async () => {
+        const name = document.getElementById("linkName").value.trim();
         const url = document.getElementById("linkUrl").value.trim();
         if (!url) return;
         try {
           const res = await fetch(`http://127.0.0.1:5000/sessions/${currentSessionId}/links`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
+            body: JSON.stringify({ name, url })
           });
           if (!res.ok) throw new Error("Failed to add link");
           linkModal.hide();
@@ -335,8 +347,16 @@ document.addEventListener("DOMContentLoaded", function () {
         alert("Please select a session and enter a message.");
         return;
       }
+
       const selectedFileIds = Array.from(document.querySelectorAll('.file-item input:checked')).map(cb => cb.closest('.file-item').dataset.id);
       const selectedLinkIds = Array.from(document.querySelectorAll('.link-item input:checked')).map(cb => cb.closest('.link-item').dataset.id);
+
+      // Check if there is at least 1 source is selected
+      if (selectedFileIds.length === 0 && selectedLinkIds.length === 0) {
+        alert("Please select at least one file/link to ask a question.");
+        return;
+      }
+
       addMessage(text, true);
       chatInput.value = "";
       try {
@@ -346,8 +366,12 @@ document.addEventListener("DOMContentLoaded", function () {
           body: JSON.stringify({ question: text, file_ids: selectedFileIds, link_ids: selectedLinkIds })
         });
         if (!res.ok) throw new Error("Failed to send message");
-        const { answer } = await res.json();
+        const { answer, source_text } = await res.json();
         addMessage(answer, false);
+        if (source_text) {
+          const italicSourceText = `<i>${source_text}</i>`;
+          addMessage(italicSourceText, false);
+        }
       } catch (error) {
         console.error("Error sending message:", error);
         addMessage("An error occurred while sending the message.", false);
