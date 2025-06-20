@@ -9,8 +9,17 @@ from PIL import Image # For image
 from database import db
 from docx import Document # For .docx
 from pptx import Presentation # For .pptx
+from langchain_together import TogetherEmbeddings  # Add to create embeddings
 from models import DBDocument, Link, DocumentChunk 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from dotenv import load_dotenv
+load_dotenv()
+
+# Initialize embeddings model
+embeddings_model = TogetherEmbeddings(
+    api_key=os.getenv("TOGETHER_AI_API_KEY"),
+    model="togethercomputer/m2-bert-80M-32k-retrieval"
+)
 
 def extract_text_from_pdf(pdf_path):
     try:
@@ -156,11 +165,15 @@ def process_and_store_chunks(source, source_type, session_id):
     
     # Save chunks into database
     for chunk in chunks:
+        # Create embedding for chunk
+        embedding = embeddings_model.embed_query(chunk)
+        
         chunk_entry = DocumentChunk(
             session_id=session_id,
             document_id=DBDocument.query.filter_by(filepath=source).first().id if source_type == 'file' else None,
             link_id=Link.query.filter_by(url=source).first().id if source_type == 'link' else None,
-            chunk_text=chunk
+            chunk_text=chunk,
+            embedding=embedding
         )
         db.session.add(chunk_entry)
     db.session.commit()

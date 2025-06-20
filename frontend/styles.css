@@ -202,3 +202,30 @@ header {
     flex-grow: 1;
   }
 }
+
+/* Button loading effect */
+.btn-loading {
+  position: relative;
+  pointer-events: none; /* Prevent interaction */
+  color: transparent; /* Hide text */
+}
+
+.btn-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}

@@ -1,15 +1,19 @@
-from langchain_together import TogetherEmbeddings, Together
-from langchain_community.vectorstores import FAISS
-from langchain.chains.question_answering import load_qa_chain
-from langchain.prompts import PromptTemplate
 import os
 import re
 from models import DocumentChunk
-from dotenv import load_dotenv
+from collections import defaultdict
+from langchain.prompts import PromptTemplate
+from langchain_community.vectorstores import FAISS
+from langchain_together import TogetherEmbeddings, Together
+from langchain.chains.question_answering import load_qa_chain
 
+from dotenv import load_dotenv
 load_dotenv()
 
 def clean_redundant(text, question):
+    # Remove everything after "|assistant" (if any)
+    text = re.split(r'\|\s*assistant', text)[0]
+    
     # Eliminate the first sentence if it is similar to the question
     sentences = re.split(r'(?<=[.!?])\s+', text)
     if sentences and sentences[0].strip() == question.strip():
@@ -27,6 +31,13 @@ def clean_redundant(text, question):
         r"Tôi luôn sẵn lòng.*",
         r"Hãy cho tôi biết.*",
         r"Tôi chúc bạn.*",
+        r"Tôi xin lỗi, nhưng.*?(?=\s|$)",
+        r"Tuy nhiên,.*?(?=\s|$)",
+        r"Nếu bạn cần.*?(?=\s|$)",
+        r"Hãy cho tôi biết.*?(?=\s|$)",
+        r"Here is the response:?\s*", 
+        r"Here is the rewritten response:?\s*",
+        r"Tóm tắt thông tin bạn đang có:?\s*",
         r"\|\s*\|",
     ]
     for p in patterns:
@@ -49,7 +60,21 @@ def trim_to_last_sentence(text, max_length=700):
         if len(result) + len(s) > max_length:
             break
         result += s + " "
-    return result.strip()
+    result = result.strip()
+    
+    # # Make sure to end with punctuation and write the first sentence
+    # if result and result[-1] not in '.!?':
+    #     result = result.rsplit(' ', 1)[0] + '.'
+        
+    #! TEST 01 - work best
+    # Make sure to end with a single period
+    if result:
+        result = result.rstrip('.!?') + '.'  # Remove extra punctuation and add a period
+    # Capitalize the first letter
+    if result:
+        result = result[0].upper() + result[1:]
+        
+    return result
 
 # Chatbot function
 def chatbot(question, session_id, file_ids, link_ids):
@@ -63,16 +88,34 @@ def chatbot(question, session_id, file_ids, link_ids):
         raise ValueError("No chunks were found for the selected documents or links.")
     
     texts = [chunk.chunk_text for chunk in chunks]
-    metadatas = [{"source": chunk.document_id or chunk.link_id} for chunk in chunks]
+    embeddings = [chunk.embedding for chunk in chunks]  # Get embeddings from database #! TEST 01 - work best
+    metadatas = []
+    for chunk in chunks:
+        if chunk.document_id:
+            metadatas.append({"type": "file", "id": chunk.document_id})
+        elif chunk.link_id:
+            metadatas.append({"type": "link", "id": chunk.link_id})
     
-    # Create vector stores
-    embeddings = TogetherEmbeddings(
+    # # Create vector stores
+    # embeddings = TogetherEmbeddings(
+    #     api_key=os.getenv("TOGETHER_AI_API_KEY"),
+    #     model="togethercomputer/m2-bert-80M-32k-retrieval"
+    # )
+    # vector_store = FAISS.from_texts(
+    #     texts,
+    #     embeddings,
+    #     metadatas=metadatas
+    # )
+    
+    #! TEST 01 - work best
+    # Create vector store from stored embeddings
+    embeddings_model = TogetherEmbeddings(
         api_key=os.getenv("TOGETHER_AI_API_KEY"),
         model="togethercomputer/m2-bert-80M-32k-retrieval"
     )
-    vector_store = FAISS.from_texts(
-        texts,
-        embeddings,
+    vector_store = FAISS.from_embeddings(
+        text_embeddings=zip(texts, embeddings),  # Use saved embeddings
+        embedding=embeddings_model,
         metadatas=metadatas
     )
     
@@ -80,8 +123,6 @@ def chatbot(question, session_id, file_ids, link_ids):
     llm = Together(
         api_key=os.getenv("TOGETHER_AI_API_KEY"),
         model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
-        # temperature=0,
-        # max_tokens=1000,
         temperature=0.2, # slight creativity but mostly deterministic
         max_tokens=800,  # faster response with tighter focus
     )
@@ -99,14 +140,14 @@ def chatbot(question, session_id, file_ids, link_ids):
             "Keep answers short, 600 tokens max, and end naturally so as not to be cut off within the 600 token limit."
         )
     )
-    
+
     # Create QA chain with the custom prompt
     chain = load_qa_chain(llm, chain_type="stuff", prompt=prompt_template)
-    
-    ### ! FIRST WAY
+    # chain = load_qa_chain(llm, chain_type="stuff")
+
     # Search and answer
     matches = vector_store.similarity_search(question, k=15)
-    # matches = vector_store.similarity_search(question, k=5) #! NEW: reduce to top 5 for speed
+    # matches = vector_store.similarity_search(question, k=5) #! Reduce to top 5 for speed
     
     # Create answer using the LLM
     response = chain.run(input_documents=matches, question=question)
@@ -122,6 +163,28 @@ def chatbot(question, session_id, file_ids, link_ids):
     if response.strip() in no_info_messages:
         unique_sources = []
     else:
+        #! Origin
+        # # Filter sources based on relevance to the response
+        # unique_sources = []
+        # # if "không được đề cập trong file" not in response and "not mentioned in the file" not in response:
+        # if matches:
+        #     # Extract key terms from the question and response (simple approach: split into words)
+        #     # question_terms = set(re.findall(r'\w+', question.lower()))
+        #     response_terms = set(re.findall(r'\w+', response.lower()))
+        #     # relevant_terms = question_terms.union(response_terms) # Combine terms for better filtering
+        #     for match in matches:
+        #         match_text = match.page_content.lower()
+        #         #! DEBUG
+        #         # print("Question terms:", question_terms)
+        #         # print("Response terms:", response_terms)
+        #         # print("Match text:", match_text)
+        #         # Check if any term in the response is in the match text
+        #         if sum(term in match_text for term in response_terms) >=2:
+        #             source = match.metadata["source"]
+        #             if source not in unique_sources:
+        #                 unique_sources.append(source)
+                        
+        #! TEST 01 - work best
         # Filter sources based on relevance to the response
         unique_sources = []
         if matches:
@@ -130,12 +193,14 @@ def chatbot(question, session_id, file_ids, link_ids):
             for match in matches:
                 match_text = match.page_content.lower()
                 #! DEBUG
+                # print("Question terms:", question_terms)
                 # print("Response terms:", response_terms)
                 # print("Match text:", match_text)
-                # Check if any term in the response is in the match text
-                if any(term in match_text for term in response_terms):
-                    source = match.metadata["source"]
-                    if source not in unique_sources:
-                        unique_sources.append(source)
+                if sum(term in match_text for term in response_terms) >=2:
+                    source_type = match.metadata["type"]
+                    source_id = match.metadata["id"]
+                    # source = match.metadata["source"]
+                    if (source_type, source_id) not in unique_sources:
+                        unique_sources.append((source_type, source_id))
     
     return response, unique_sources

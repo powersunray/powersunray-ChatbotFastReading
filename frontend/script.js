@@ -16,7 +16,9 @@ document.addEventListener("DOMContentLoaded", function () {
   // Bootstrap Modals
   const groupModal = new bootstrap.Modal(document.getElementById("groupModal"));
   const linkModal = new bootstrap.Modal(document.getElementById("linkModal"));
-  const renameModal = new bootstrap.Modal(document.getElementById("renameModal"));
+  const renameModal = new bootstrap.Modal(
+    document.getElementById("renameModal")
+  );
 
   // State Variables
   let currentSessionId = null;
@@ -47,7 +49,9 @@ document.addEventListener("DOMContentLoaded", function () {
       const res = await fetch("http://127.0.0.1:5000/sessions");
       if (!res.ok) {
         if (res.status === 403) {
-          throw new Error("Backend từ chối yêu cầu (403 Forbidden). Kiểm tra cấu hình CORS hoặc trạng thái backend.");
+          throw new Error(
+            "Backend từ chối yêu cầu (403 Forbidden). Kiểm tra cấu hình CORS hoặc trạng thái backend."
+          );
         }
         throw new Error("Failed to fetch sessions: " + res.statusText);
       }
@@ -91,9 +95,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function renderSessions(sessions) {
     sessionList.innerHTML = "";
-    sessions.forEach(session => {
+    sessions.forEach((session) => {
       const li = document.createElement("li");
-      li.className = "list-group-item d-flex justify-content-between align-items-center";
+      li.className =
+        "list-group-item d-flex justify-content-between align-items-center";
       li.dataset.sessionId = session.id;
       li.textContent = session.name;
       const icon = document.createElement("i");
@@ -110,7 +115,9 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
       currentSessionId = sessionId;
       // Get files
-      const filesRes = await fetch(`http://127.0.0.1:5000/sessions/${sessionId}/files`);
+      const filesRes = await fetch(
+        `http://127.0.0.1:5000/sessions/${sessionId}/files`
+      );
       if (!filesRes.ok) throw new Error("Failed to fetch files");
       const files = await filesRes.json();
       fileMap = files.reduce((map, file) => {
@@ -119,7 +126,9 @@ document.addEventListener("DOMContentLoaded", function () {
       }, {});
 
       // Get links
-      const linksRes = await fetch(`http://127.0.0.1:5000/sessions/${sessionId}/links`);
+      const linksRes = await fetch(
+        `http://127.0.0.1:5000/sessions/${sessionId}/links`
+      );
       if (!linksRes.ok) throw new Error("Failed to fetch links");
       const links = await linksRes.json();
       linkMap = links.reduce((map, link) => {
@@ -128,7 +137,9 @@ document.addEventListener("DOMContentLoaded", function () {
       }, {});
 
       // Get chat history
-      const chatsRes = await fetch(`http://127.0.0.1:5000/chat_history/${sessionId}`);
+      const chatsRes = await fetch(
+        `http://127.0.0.1:5000/chat_history/${sessionId}`
+      );
       if (!chatsRes.ok) throw new Error("Failed to fetch session data");
       const chats = await chatsRes.json();
 
@@ -145,31 +156,32 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!currentSessionId) return;
     fileList.innerHTML = files.length
       ? files
-        .map(
-          (f) => `
+          .map(
+            (f) => `
         <div class="file-item d-flex align-items-center" data-id="${f.id}">
           <div class="file-icon"><i class="fas fa-file"></i></div>
           <div class="file-name">${f.filename}</div>
           <div class="file-checkbox"><input type="checkbox" class="form-check-input"></div>
         </div>`
-        )
-        .join("")
-    : '<p class="text-muted text-center">No files</p>';
+          )
+          .join("")
+      : '<p class="text-muted text-center">No files</p>';
   }
 
   function renderLinks(links) {
     if (!currentSessionId) return;
     linkList.innerHTML = links.length
       ? links
-      .map(
-        (l) => `
+          .map(
+            (l) => `
       <div class="link-item d-flex align-items-center" data-id="${l.id}">
         <div class="link-icon"><i class="fas fa-link"></i></div>
         <div class="link-name">${l.name || l.url}</div>
         <div class="link-checkbox"><input type="checkbox" class="form-check-input"></div>
-      </div>`)
-      .join("")
-    : '<p class="text-muted text-center">No links</p>';
+      </div>`
+          )
+          .join("")
+      : '<p class="text-muted text-center">No links</p>';
   }
 
   function renderChatHistory(chats) {
@@ -179,7 +191,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function addMessage(message, isUser = false) {
     const div = document.createElement("div");
-    div.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+    div.className = `message ${isUser ? "user-message" : "bot-message"}`;
     const content = document.createElement("div");
     content.className = "message-content";
     content.innerHTML = message;
@@ -194,7 +206,9 @@ document.addEventListener("DOMContentLoaded", function () {
       const li = e.target.closest(".list-group-item");
       if (!li || e.target.classList.contains("group-menu-trigger")) return;
       currentSessionId = li.dataset.sessionId;
-      document.querySelectorAll(".document-groups .list-group-item").forEach((i) => i.classList.remove("active"));
+      document
+        .querySelectorAll(".document-groups .list-group-item")
+        .forEach((i) => i.classList.remove("active"));
       li.classList.add("active");
       await loadSessionData(currentSessionId);
     });
@@ -209,56 +223,68 @@ document.addEventListener("DOMContentLoaded", function () {
         groupContextMenu.style.top = `${rect.bottom}px`;
         groupContextMenu.style.left = `${rect.left}px`;
         groupContextMenu.classList.add("show");
-      } 
+      }
     });
 
     document.addEventListener("click", (e) => {
-      if (!e.target.closest(".group-context-menu") && !e.target.classList.contains("group-menu-trigger")) {
+      if (
+        !e.target.closest(".group-context-menu") &&
+        !e.target.classList.contains("group-menu-trigger")
+      ) {
         groupContextMenu.classList.remove("show");
       }
     });
 
-    document.querySelector(".rename-group").addEventListener("click", async () => {
-      const id = currentContextTarget.dataset.sessionId;
-      const newName = prompt("New session name:", currentContextTarget.textContent.trim());
-      if (!newName) return;
-      try {
-        const res = await fetch(`http://127.0.0.1:5000/sessions/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: newName })
-        });
-        if (!res.ok) throw new Error("Failed to rename session");
-        groupContextMenu.classList.remove("show");
-        await loadSessions();
-      } catch (error) {
-        console.error("Error renaming session:", error);
-        alert("Failed to rename session. Please try again.");
-      }
-    });
+    document
+      .querySelector(".rename-group")
+      .addEventListener("click", async () => {
+        const id = currentContextTarget.dataset.sessionId;
+        const newName = prompt(
+          "New session name:",
+          currentContextTarget.textContent.trim()
+        );
+        if (!newName) return;
+        try {
+          const res = await fetch(`http://127.0.0.1:5000/sessions/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: newName }),
+          });
+          if (!res.ok) throw new Error("Failed to rename session");
+          groupContextMenu.classList.remove("show");
+          await loadSessions();
+        } catch (error) {
+          console.error("Error renaming session:", error);
+          alert("Failed to rename session. Please try again.");
+        }
+      });
 
-    document.querySelector(".delete-group").addEventListener("click", async () => {
-      const id = currentContextTarget.dataset.sessionId;
-      if (!confirm("Delete this session?")) return;
-      try {
-        const res = await fetch(`http://127.0.0.1:5000/sessions/${id}`, { method: "DELETE" });
-        if (!res.ok) {
-          const errorData = await res.json(); // Get error info from backend
-          throw new Error(errorData.error || "Error deleting session");
+    document
+      .querySelector(".delete-group")
+      .addEventListener("click", async () => {
+        const id = currentContextTarget.dataset.sessionId;
+        if (!confirm("Delete this session?")) return;
+        try {
+          const res = await fetch(`http://127.0.0.1:5000/sessions/${id}`, {
+            method: "DELETE",
+          });
+          if (!res.ok) {
+            const errorData = await res.json(); // Get error info from backend
+            throw new Error(errorData.error || "Error deleting session");
+          }
+          groupContextMenu.classList.remove("show");
+          if (currentSessionId === id) {
+            currentSessionId = null;
+            fileList.innerHTML = "";
+            linkList.innerHTML = "";
+            chatMessages.innerHTML = "";
+          }
+          await loadSessions();
+        } catch (error) {
+          console.error("Error deleting session:", error);
+          alert(`Failed to delete session: ${error.message}`);
         }
-        groupContextMenu.classList.remove("show");
-        if (currentSessionId === id) {
-          currentSessionId = null;
-          fileList.innerHTML = "";
-          linkList.innerHTML = "";
-          chatMessages.innerHTML = "";
-        }
-        await loadSessions();
-      } catch (error) {
-        console.error("Error deleting session:", error);
-        alert(`Failed to delete session: ${error.message}`);
-      }
-    });
+      });
 
     // Add session
     addSessionBtn.addEventListener("click", () => {
@@ -270,13 +296,15 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!name) return;
         try {
           const res = await fetch(`http://127.0.0.1:5000/sessions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
           });
           if (!res.ok) {
             const errorData = await res.json();
-            throw new Error(`Failed to add session: ${errorData.error || res.statusText}`);
+            throw new Error(
+              `Failed to add session: ${errorData.error || res.statusText}`
+            );
           }
           groupModal.hide();
           await loadSessions();
@@ -294,15 +322,23 @@ document.addEventListener("DOMContentLoaded", function () {
     });
     fileUpload.addEventListener("change", async () => {
       if (!fileUpload.files.length) return;
+      const loadingElement = document.getElementById("uploadLoading");
+      loadingElement.style.display = "block"; // loading
+      console.log("Bắt đầu upload");
       const fd = new FormData();
-      fd.append('file', fileUpload.files[0]);
+      fd.append("file", fileUpload.files[0]);
       try {
-        const res = await fetch(`http://127.0.0.1:5000/sessions/${currentSessionId}/upload`, { method: 'POST', body: fd });
-        if (!res.ok) return alert('Upload failed');
+        const res = await fetch(
+          `http://127.0.0.1:5000/sessions/${currentSessionId}/upload`,
+          { method: "POST", body: fd }
+        );
+        if (!res.ok) return alert("Upload failed");
         await loadSessionData(currentSessionId);
       } catch (error) {
         console.error("Error uploading file:", error);
         alert("Failed to upload file. Please try again.");
+      } finally {
+        loadingElement.style.display = "none"; // hide loading
       }
     });
 
@@ -313,31 +349,46 @@ document.addEventListener("DOMContentLoaded", function () {
       document.getElementById("linkUrl").value = "";
       linkModal.show();
       document.getElementById("saveLinkBtn").onclick = async () => {
+        const saveBtn = document.getElementById("saveLinkBtn");
+        saveBtn.classList.add("btn-loading"); // add loading class
+        console.log("Nút Save được nhấn");
+        saveBtn.disabled = true; // disable button
         const name = document.getElementById("linkName").value.trim();
         const url = document.getElementById("linkUrl").value.trim();
-        if (!url) return;
+        // if (!url) return;
+        if (!url) {
+          saveBtn.classList.remove("btn-loading");
+          saveBtn.disabled = false;
+          return;
+        }
         try {
-          const res = await fetch(`http://127.0.0.1:5000/sessions/${currentSessionId}/links`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, url })
-          });
+          const res = await fetch(
+            `http://127.0.0.1:5000/sessions/${currentSessionId}/links`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name, url }),
+            }
+          );
           if (!res.ok) throw new Error("Failed to add link");
           linkModal.hide();
           await loadSessionData(currentSessionId);
         } catch (error) {
           console.error("Error adding link:", error);
           alert("Failed to add link. Please try again.");
+        } finally {
+          saveBtn.classList.remove("btn-loading"); // Delete loading class
+          saveBtn.disabled = false; // Activate button again
         }
       };
     });
 
     // Send message
     sendBtn.addEventListener("click", sendMessage);
-    chatInput.addEventListener("keypress", e => {
-      if (e.key === 'Enter' && !e.shiftKey) { 
-        e.preventDefault(); 
-        sendMessage(); 
+    chatInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
       }
     });
 
@@ -348,8 +399,12 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      const selectedFileIds = Array.from(document.querySelectorAll('.file-item input:checked')).map(cb => cb.closest('.file-item').dataset.id);
-      const selectedLinkIds = Array.from(document.querySelectorAll('.link-item input:checked')).map(cb => cb.closest('.link-item').dataset.id);
+      const selectedFileIds = Array.from(
+        document.querySelectorAll(".file-item input:checked")
+      ).map((cb) => cb.closest(".file-item").dataset.id);
+      const selectedLinkIds = Array.from(
+        document.querySelectorAll(".link-item input:checked")
+      ).map((cb) => cb.closest(".link-item").dataset.id);
 
       // Check if there is at least 1 source is selected
       if (selectedFileIds.length === 0 && selectedLinkIds.length === 0) {
@@ -360,11 +415,18 @@ document.addEventListener("DOMContentLoaded", function () {
       addMessage(text, true);
       chatInput.value = "";
       try {
-        const res = await fetch(`http://127.0.0.1:5000/sessions/${currentSessionId}/ask`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: text, file_ids: selectedFileIds, link_ids: selectedLinkIds })
-        });
+        const res = await fetch(
+          `http://127.0.0.1:5000/sessions/${currentSessionId}/ask`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              question: text,
+              file_ids: selectedFileIds,
+              link_ids: selectedLinkIds,
+            }),
+          }
+        );
         if (!res.ok) throw new Error("Failed to send message");
         const { answer, source_text } = await res.json();
         addMessage(answer, false);

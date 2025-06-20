@@ -1,4 +1,5 @@
 from database import db
+from pgvector.sqlalchemy import Vector
 
 # Define models
 class ChatSession(db.Model):
@@ -33,4 +34,5 @@ class DocumentChunk(db.Model):
     document_id = db.Column(db.Integer, db.ForeignKey('db_document.id'), nullable=True)
     link_id = db.Column(db.Integer, db.ForeignKey('link.id'), nullable=True)
     chunk_text = db.Column(db.Text, nullable=False)
+    embedding = db.Column(Vector(768))
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())

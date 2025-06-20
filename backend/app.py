@@ -1,14 +1,14 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from flask_migrate import Migrate
 import os
 import shutil
 from database import db
-from models import ChatSession, DBDocument, Link, ChatHistory, DocumentChunk
+from flask_cors import CORS
 from chat_service import chatbot
+from flask_migrate import Migrate
+from flask import Flask, request, jsonify
 from process_documents import process_and_store_chunks
-from dotenv import load_dotenv
+from models import ChatSession, DBDocument, Link, ChatHistory, DocumentChunk
 
+from dotenv import load_dotenv
 # Load environment variables from .env
 load_dotenv()
 
@@ -157,18 +157,15 @@ def ask_question(session_id):
     # Call chatbot with file_ids and link_ids
     answer, sources = chatbot(question, session_id, file_ids, link_ids)
 
-    # Resolve source IDs to names
+    # Resolve source IDs to names                
     source_names = []
-    for source in sources:
-        # Check if source is a file ID
-        # doc = DBDocument.query.get(source)
-        doc = db.session.get(DBDocument, source)
-        if doc:
-            source_names.append(doc.filename)
-        else:
-            # Check if source is a link ID
-            # link = Link.query.get(source)
-            link = db.session.get(Link, source)
+    for source_type, source_id in sources:
+        if source_type == "file":
+            doc = db.session.get(DBDocument, source_id)
+            if doc:
+                source_names.append(doc.filename)
+        elif source_type == "link":
+            link = db.session.get(Link, source_id)
             if link:
                 source_names.append(link.name or link.url)
                 
